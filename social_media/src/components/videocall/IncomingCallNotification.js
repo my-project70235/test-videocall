@@ -207,18 +207,35 @@ const IncomingCallNotification = () => {
       console.log(`🔔 Socket event received: ${eventName}`, args);
     });
     
-    // Test socket connection
-    if (!socket.connected) {
-      console.warn('⚠️ Socket not connected, attempting to connect...');
-      socket.connect();
-    }
-
-    // Cleanup
-    return () => {
+    // Force socket connection and user join
+    const ensureSocketConnection = () => {
+      if (!socket.connected) {
+        console.warn('⚠️ Socket not connected, attempting to connect...');
+        socket.connect();
+      } else {
+        console.log('✅ Socket already connected');
+        // Ensure user is joined to room
+        if (decodedUser && decodedUser.id) {
+          console.log('🔄 Re-joining room to ensure proper connection:', decodedUser.id);
+          socket.emit('join', decodedUser.id.toString());
+        }
+      }
+    };
+    
+    // Call immediately and set interval to ensure connection
+    ensureSocketConnection();
+    const connectionInterval = setInterval(ensureSocketConnection, 5000);
+    
+    // Clear interval on cleanup
+    const originalCleanup = () => {
+      clearInterval(connectionInterval);
       console.log('🧹 Cleaning up incoming call listeners');
       socket.off('incoming-call', handleIncomingCall);
       socket.off('call-cancelled', handleCallCancelled);
     };
+
+    // Cleanup
+    return originalCleanup;
   }, [navigate, decodedUser]);
 
   // Add a test button in development

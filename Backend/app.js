@@ -464,10 +464,23 @@ io.on("connection", (socket) => {
       };
       
       console.log(`📤 Sending incoming-call to socket ${calleeSocketID}:`, callData);
+      console.log(`📤 Also sending to user room ${calleeID} as fallback`);
+      
+      // Send to specific socket ID
       io.to(calleeSocketID).emit("incoming-call", callData);
       
-      // Also try sending to user room (fallback)
+      // Also send to user room (fallback)
       io.to(calleeID).emit("incoming-call", callData);
+      
+      // Additional fallback - broadcast to all sockets of this user
+      const allSocketsForUser = Array.from(io.sockets.sockets.values())
+        .filter(s => s.userId === calleeID);
+      
+      console.log(`📡 Found ${allSocketsForUser.length} sockets for user ${calleeID}`);
+      allSocketsForUser.forEach(s => {
+        console.log(`📤 Sending to additional socket: ${s.id}`);
+        s.emit("incoming-call", callData);
+      });
       
       console.log(`✅ Call notification sent from ${callerID} (${callerInfo.callerName}) to ${calleeID}`);
     } catch (error) {
@@ -480,6 +493,19 @@ io.on("connection", (socket) => {
   } else {
     console.log(`❌ Callee ${calleeID} not connected to socket`);
     console.log(`💡 Available online users: ${Array.from(onlineUsers.keys()).join(', ')}`);
+    
+    // Try to find any socket with this userId
+    const allSockets = Array.from(io.sockets.sockets.values());
+    const userSockets = allSockets.filter(s => s.userId === calleeID);
+    
+    if (userSockets.length > 0) {
+      console.log(`🔍 Found ${userSockets.length} sockets for user ${calleeID}, trying direct emit`);
+      const callData = { roomID, callerID, callerName, callerImage };
+      userSockets.forEach(s => {
+        console.log(`📤 Sending to found socket: ${s.id}`);
+        s.emit("incoming-call", callData);
+      });
+    }
   }
 });
 
